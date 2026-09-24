@@ -94,6 +94,54 @@ impl Timestamp {
             self.subsecond_millis()
         )
     }
+
+    /// Parses a WebVTT cue timestamp: `HH:MM:SS.mmm` or, since WebVTT
+    /// allows the hours field to be dropped when it's zero, `MM:SS.mmm`.
+    /// A `,` is also accepted in place of the `.` for leniency.
+    pub fn parse_vtt(input: &str) -> Result<Timestamp, TimeParseError> {
+        let trimmed = input.trim();
+        let normalized = trimmed.replace(',', ".");
+        let (hms, millis_part) = normalized
+            .split_once('.')
+            .ok_or_else(|| TimeParseError::InvalidFormat(trimmed.to_string()))?;
+
+        let fields: Vec<&str> = hms.split(':').collect();
+        let (hours, minutes, seconds) = match fields.as_slice() {
+            [m, s] => (
+                0,
+                parse_field(Some(m), trimmed)?,
+                parse_field(Some(s), trimmed)?,
+            ),
+            [h, m, s] => (
+                parse_field(Some(h), trimmed)?,
+                parse_field(Some(m), trimmed)?,
+                parse_field(Some(s), trimmed)?,
+            ),
+            _ => return Err(TimeParseError::InvalidFormat(trimmed.to_string())),
+        };
+        if minutes >= 60 || seconds >= 60 {
+            return Err(TimeParseError::OutOfRange(trimmed.to_string()));
+        }
+
+        let milliseconds: u32 = millis_part
+            .parse()
+            .map_err(|_| TimeParseError::InvalidFormat(trimmed.to_string()))?;
+
+        Ok(Timestamp::new(hours, minutes, seconds, milliseconds))
+    }
+
+    /// Renders as a WebVTT cue timestamp: `HH:MM:SS.mmm`. The hours field
+    /// is always written, even though WebVTT allows dropping it, since a
+    /// reader never has to guess whether it was left out on purpose.
+    pub fn format_vtt(&self) -> String {
+        format!(
+            "{:02}:{:02}:{:02}.{:03}",
+            self.hours(),
+            self.minutes(),
+            self.seconds(),
+            self.subsecond_millis()
+        )
+    }
 }
 
 fn parse_field(field: Option<&str>, original: &str) -> Result<u32, TimeParseError> {
@@ -173,5 +221,35 @@ mod tests {
     fn shift_moves_forward_normally() {
         let ts = Timestamp::from_millis(1_000);
         assert_eq!(ts.shifted(250).as_millis(), 1_250);
+    }
+
+    #[test]
+    fn parse_vtt_accepts_hours() {
+        assert_eq!(
+            Timestamp::parse_vtt("01:02:03.456").unwrap(),
+            Timestamp::new(1, 2, 3, 456)
+        );
+    }
+
+    #[test]
+    fn parse_vtt_accepts_missing_hours() {
+        assert_eq!(
+            Timestamp::parse_vtt("02:03.456").unwrap(),
+            Timestamp::new(0, 2, 3, 456)
+        );
+    }
+
+    #[test]
+    fn format_vtt_always_writes_hours() {
+        let ts = Timestamp::new(0, 2, 3, 456);
+        assert_eq!(ts.format_vtt(), "00:02:03.456");
+    }
+
+    #[test]
+    fn parse_vtt_rejects_out_of_range_fields() {
+        assert!(matches!(
+            Timestamp::parse_vtt("00:61.000"),
+            Err(TimeParseError::OutOfRange(_))
+        ));
     }
 }

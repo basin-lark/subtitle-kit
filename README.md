@@ -1,7 +1,7 @@
 # subtitle-kit
 
-A small Rust library for parsing, editing, and writing `.srt` subtitle
-files, built with zero dependencies.
+A small Rust library for parsing, editing, and writing subtitle files
+(`.srt` and `.vtt`), built with zero dependencies.
 
 I keep re-writing the same throwaway script every time a downloaded
 subtitle file is out of sync with the video: parse the file, shift every
@@ -44,6 +44,20 @@ println!("{}", format_srt(&corrected));
 // Second line
 ```
 
+WebVTT works the same way, through `parse_vtt` and `format_vtt`. A `Cue`
+differs from a `Subtitle` in that its identifier is optional text rather
+than a required number, and it may carry a cue settings string (e.g.
+`align:start position:10%`):
+
+```rust
+use subtitle_kit::{format_vtt, parse_vtt};
+
+let input = "WEBVTT\n\nintro\n00:00:01.000 --> 00:00:04.000\nHello there\n";
+let cues = parse_vtt(input).expect("valid vtt");
+assert_eq!(cues[0].identifier.as_deref(), Some("intro"));
+println!("{}", format_vtt(&cues));
+```
+
 Timestamps can also be built and formatted directly:
 
 ```rust
@@ -56,6 +70,8 @@ assert_eq!(Timestamp::parse("00:01:30,250").unwrap(), ts);
 
 ## Status
 
-Early. SRT parsing, formatting, shifting, and renumbering are covered by
-tests in `src/srt.rs` and `src/time.rs`. See the roadmap for what's
-missing.
+Early. SRT parsing, formatting, shifting, and renumbering, and WebVTT
+parsing and formatting, are covered by tests in `src/srt.rs`,
+`src/vtt.rs`, and `src/time.rs`. Still missing: overlap detection,
+reading-speed validation, merge/split operations, and framerate
+conversion.

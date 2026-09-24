@@ -9,6 +9,8 @@
 
 pub mod srt;
 pub mod time;
+pub mod vtt;
 
 pub use srt::{format_srt, parse_srt, renumber, shift_by, ParseError, Subtitle};
 pub use time::{TimeParseError, Timestamp};
+pub use vtt::{format_vtt, parse_vtt, Cue, VttParseError};
